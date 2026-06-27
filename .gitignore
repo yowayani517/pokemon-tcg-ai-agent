@@ -1,0 +1,45 @@
+# ===== 秘密情報(APIトークン直書き)を含むファイル: 絶対に公開しない =====
+experiments/download_fire_replays.py
+experiments/extract_top_decks.py
+
+# ===== 競技中: 他プレイヤーのリプレイ/抽出デッキ/参考コードは公開しない =====
+experiments/meta_now/
+experiments/gauntlet_top/
+experiments/top_agents/
+experiments/planning_ref/
+experiments/maki_kernel/
+experiments/replays/
+experiments/replays_fire/
+experiments/replays_kuritan/
+experiments/replays_praxel/
+experiments/replays_top/
+experiments/replay_top1/
+experiments/gauntlet/
+*.replay.json
+captured_main_obs.json
+disc.html
+# 他プレイヤーのリプレイ実況ログ
+experiments/praxel_game1.txt
+experiments/*_game*.txt
+
+# ===== コンペ公式SDK(cg, dll)は再配布しない =====
+experiments/cg/
+experiments/cg_api/
+
+# ===== 大容量データ/配布物/モデルバイナリ =====
+data/
+backups/
+*.tar.gz
+*.zip
+*.pdf
+*.pkl
+*.npy
+*.dll
+*.so
+*.dylib
+
+# ===== ログ/一時/キャッシュ =====
+*.log
+__pycache__/
+*.pyc
+.DS_Store
