@@ -66,6 +66,7 @@ ATTACK_PIERCE = {NEBULA_BEAM}     # 弱点・相手効果を無視する技
 ATTACK_NEED_WATER = {JETTING_BLOW, WATER_GUN}  # 水エネが必要な技
 STARMIE_LINE = {1030, 1031}       # Staryu / Mega Starmie ex
 ALAKAZAM_LINE = {109, 742, 245}   # Abra / Kadabra / Alakazam(エネ依存スケール火力=こちらのエネを盛ると痛い)
+ARCHALUDON_LINE = {169, 190}      # Duraludon / Archaludon ex(現1位・鋼220。進化前に刈りたい)
 WALL_IDS = {344, 345}             # Dwebble / Crustle (ex無効の壁)
 LOW_DECK_COUNT = 8
 
@@ -354,6 +355,11 @@ class StarmiePolicy:
                     # ① 対エスパー: フーディン系は育つ前に最優先で刈る(エネ依存火力が脅威)
                     if opk.id in ALAKAZAM_LINE:
                         sc += 1800 if opk.id == 245 else 1200
+                    # 対鋼: Archaludon ex(220)は脅威。進化前ジュラルドンを早期に刈れば220を防げる
+                    if opk.id == 190:
+                        sc += 1600                      # 完成Archaludonは最優先処理
+                    elif opk.id == 169:
+                        sc += 900 if ko else 400        # ジュラルドンは進化前にKOできるなら刈る
                     # ③ 自分を倒してくる脅威を先に処理(KOできる時ほど価値大)
                     odmg = _max_atk_damage(od)
                     if self.my_act_hp and odmg >= self.my_act_hp:

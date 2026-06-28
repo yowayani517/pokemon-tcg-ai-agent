@@ -48,3 +48,10 @@ __pycache__/
 experiments/top50/
 experiments/lb/
 experiments/extract_top50.py
+
+# コピーした他者デッキ(競技中は非公開)
+experiments/archaludon_top1.csv
+experiments/*_top1.csv
+_stage/
+_verify/
+submission_plan.tar.gz
