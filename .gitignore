@@ -55,3 +55,7 @@ experiments/*_top1.csv
 _stage/
 _verify/
 submission_plan.tar.gz
+
+# 録画ログ(生成物)
+experiments/battle_log*.json
+experiments/battle_best.json
