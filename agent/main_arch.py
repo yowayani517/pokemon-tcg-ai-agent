@@ -372,9 +372,13 @@ class ArchPolicy:
         if cid == C.BOSS:
             return 3200 if plan.target >= 1 else -1
         if cid == C.ULTRA_BALL:
-            # Archaludon/Duraludonが場に揃ってないなら最優先級でサーチ
+            # 進化パーツのサーチ＋コストで鋼を捨て札に送りAssemble Alloyを起動する二役。
             need = self.field_counts[C.ARCHALUDON] + self.field_counts[C.DURALUDON] < 2
-            return 3000 if need else 1500
+            metal_in_disc = sum(1 for c in self.me.discard if c.id == C.METAL)
+            # コストで鋼を捨て札に仕込みAssemble Alloyを起動(=進化即3エネ)。
+            # この高速化が対Starmie等の勝因。
+            fuel = self.hand_counts[C.METAL] >= 2 and metal_in_disc < 2
+            return 3000 if (need or fuel) else 1500
         if cid == C.POKEGEAR:
             return 2400
         if cid == C.POKE_PAD:
@@ -443,11 +447,12 @@ class ArchPolicy:
         return s
 
     def _score_discard(self, card):
-        # Assemble Alloy用に鋼エネを捨て札に置くのは悪くない。重要札は残す。
-        if card.id in (C.ARCHALUDON, C.DURALUDON):
+        # Assemble Alloy(進化時に捨て札から鋼エネ2枚を加速)を回すため、鋼を捨て札へ。
+        # 重要札(進化パーツ)は残す。
+        if card.id in (C.ARCHALUDON, C.DURALUDON, C.RELICANTH):
             return -200
         if card.id == C.METAL:
-            return 50   # 捨て札の鋼は進化加速で回収できる
+            return 120   # 捨て札の鋼=進化時に回収して即3エネ圏=最優先で捨て札に送る
         return 0
 
 
