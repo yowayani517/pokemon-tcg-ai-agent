@@ -43,3 +43,8 @@ backups/
 __pycache__/
 *.pyc
 .DS_Store
+
+# top50メタ分析の生データ(他者デッキ/リプレイ/LB)は非公開
+experiments/top50/
+experiments/lb/
+experiments/extract_top50.py
