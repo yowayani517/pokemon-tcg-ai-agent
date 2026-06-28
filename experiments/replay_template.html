@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PTCG Battle Replay</title>
+<style>
+:root{--bg:#0f1419;--panel:#1a2230;--panel2:#222d3d;--line:#2e3a4d;--txt:#e8edf4;--mut:#8a97a8;--me:#378ADD;--op:#D85A30;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--txt);font-family:system-ui,"Segoe UI","Hiragino Sans",sans-serif;font-size:14px;}
+.wrap{max-width:860px;margin:0 auto;padding:12px;}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;flex-wrap:wrap;}
+.badge{font-weight:600;padding:4px 12px;border-radius:6px;font-size:13px;}
+.win{background:#143d2a;color:#5DCAA5;}.lose{background:#3d1414;color:#F09595;}.draw{background:#3d3414;color:#EF9F27;}
+.btn{background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:6px 12px;cursor:pointer;font-size:13px;}
+.btn:hover{background:#2c3a4d;}
+.zone{background:var(--panel);border-radius:10px;padding:8px 10px;margin:6px 0;}
+.zone.me{border:1.5px solid var(--me);}.zone.op{border:1.5px solid var(--op);}
+.zlabel{display:flex;justify-content:space-between;font-size:12px;color:var(--mut);margin-bottom:6px;align-items:center;}
+.counts{display:flex;gap:10px;font-size:12px;color:var(--mut);}
+.counts b{color:var(--txt);}
+.prizes{display:inline-flex;gap:3px;}
+.pz{width:9px;height:9px;border-radius:50%;background:#3a4658;}.pz.left{background:#EF9F27;}
+.row{display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;}
+.bench{display:flex;gap:6px;flex-wrap:wrap;}
+.card{border-radius:8px;padding:5px 7px;cursor:pointer;border:1px solid var(--line);background:var(--panel2);position:relative;}
+.card.big{width:130px;}.card.sm{width:96px;}
+.card .nm{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.card .hpr{height:5px;border-radius:3px;background:#11161e;overflow:hidden;margin:3px 0;}
+.card .hpf{height:100%;}
+.card .hp{font-size:10px;color:var(--mut);}
+.pips{display:flex;gap:2px;margin-top:3px;min-height:12px;flex-wrap:wrap;}
+.pip{width:12px;height:12px;border-radius:50%;font-size:8px;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;}
+.tool{position:absolute;top:3px;right:3px;font-size:9px;background:#185FA5;color:#fff;padding:0 4px;border-radius:4px;}
+.cond{font-size:9px;color:#EF9F27;margin-top:2px;}
+.typebar{height:4px;border-radius:3px 3px 0 0;margin:-5px -7px 4px;}
+.action{text-align:center;background:var(--panel2);border-radius:8px;padding:6px;margin:6px 0;font-size:14px;}
+.action b{color:#85B7EB;}
+.ctrl{display:flex;gap:8px;align-items:center;margin-top:8px;}
+.ctrl input[type=range]{flex:1;}
+.muted{color:var(--mut);font-size:12px;}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;padding:16px;z-index:9;}
+.modal.on{display:flex;}
+.sheet{background:var(--panel);border:1px solid var(--line);border-radius:12px;max-width:420px;width:100%;padding:16px;max-height:84vh;overflow:auto;}
+.sheet h3{font-size:16px;margin-bottom:4px;}
+.sheet .meta{font-size:12px;color:var(--mut);margin-bottom:10px;}
+.atk{border-top:1px solid var(--line);padding:8px 0;}
+.atk .h{display:flex;justify-content:space-between;align-items:center;}
+.atk .nm{font-weight:600;}.atk .dm{font-weight:700;color:#F0997B;}
+.atk .tx{font-size:12px;color:var(--mut);margin-top:3px;}
+.abil{border-top:1px solid var(--line);padding:8px 0;}
+.abil .nm{font-weight:600;color:#AFA9EC;}
+.x{float:right;cursor:pointer;color:var(--mut);font-size:20px;line-height:1;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span id="badge" class="badge"></span>
+      <span class="muted">vs <span id="opp"></span></span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span class="muted">ターン <b id="turn" style="color:var(--txt)"></b> ・ <span id="idx"></span>/<span id="tot"></span></span>
+      <button class="btn" id="lang">EN</button>
+    </div>
+  </div>
+
+  <div class="zone op">
+    <div class="zlabel"><span>相手 (<span id="opName"></span>)</span>
+      <span class="counts"><span class="prizes" id="opPz"></span> 手<b id="opHand"></b> 山<b id="opDeck"></b> 捨<b id="opDisc"></b></span></div>
+    <div class="row"><div id="opAct"></div><div class="bench" id="opBench"></div></div>
+  </div>
+
+  <div class="action">AIの選択: <b id="act"></b></div>
+
+  <div class="zone me">
+    <div class="row"><div id="meAct"></div><div class="bench" id="meBench"></div></div>
+    <div class="zlabel" style="margin-top:6px;"><span>自分 = AI (Archaludon)</span>
+      <span class="counts"><span class="prizes" id="mePz"></span> 手<b id="meHand"></b> 山<b id="meDeck"></b> 捨<b id="meDisc"></b></span></div>
+  </div>
+
+  <div class="ctrl">
+    <button class="btn" id="prev">◀</button>
+    <button class="btn" id="play">▶ 再生</button>
+    <button class="btn" id="next">▶</button>
+    <input type="range" id="sl" min="0" value="0">
+  </div>
+</div>
+
+<div class="modal" id="modal"><div class="sheet" id="sheet"></div></div>
+
+<script>
+const D=/*DATA*/;
+const ET=D.etype, DB=D.db, F=D.frames;
+let lang="jp", cur=0, timer=null;
+const $=id=>document.getElementById(id);
+$("opp").textContent=D.opp;$("opName").textContent=D.opp;$("tot").textContent=F.length;$("sl").max=F.length-1;
+const b=$("badge");b.textContent={WIN:"勝利",LOSE:"敗北",DRAW:"引分"}[D.result];b.className="badge "+D.result.toLowerCase();
+function nm(id){const m=DB[id];return m?(lang==="jp"?m.jp:m.en):("#"+id);}
+function prizes(el,left){let h="";for(let i=0;i<6;i++)h+='<span class="pz '+(i<left?"left":"")+'"></span>';el.innerHTML=h;}
+function pips(en){let h="";(en||[]).forEach(t=>{const e=ET[t]||ET[0];h+='<span class="pip" style="background:'+e[1]+'">'+e[0]+'</span>';});return h;}
+function cardHTML(p,big){
+  if(!p)return '<div class="card '+(big?"big":"sm")+'" style="opacity:.4;cursor:default"><div class="nm muted">なし</div></div>';
+  const m=DB[p.id]||{}; const col=(m.type>=0&&ET[m.type])?ET[m.type][1]:"#5F5E5A";
+  const pct=Math.max(0,Math.round(100*p.hp/(p.max||1)));
+  const hc=pct>50?"#5DCAA5":pct>25?"#EF9F27":"#F09595";
+  const tool=p.tools&&p.tools.length?'<span class="tool">'+nm(p.tools[0])+'</span>':'';
+  return '<div class="card '+(big?"big":"sm")+'" onclick="showCard('+p.id+')">'
+    +'<div class="typebar" style="background:'+col+'"></div>'+tool
+    +'<div class="nm">'+nm(p.id)+'</div>'
+    +'<div class="hp">HP '+p.hp+'/'+p.max+'</div>'
+    +'<div class="hpr"><div class="hpf" style="width:'+pct+'%;background:'+hc+'"></div></div>'
+    +'<div class="pips">'+pips(p.en)+'</div></div>';
+}
+function renderSide(s,pre){
+  $(pre+"Hand").textContent=s.hand;$(pre+"Deck").textContent=s.deck;$(pre+"Disc").textContent=s.discard;
+  prizes($(pre+"Pz"),s.prize);
+  $(pre+"Act").innerHTML=cardHTML(s.active,true)+(s.cond&&s.cond.length?'<div class="cond">'+s.cond.join(",")+'</div>':'');
+  $(pre+"Bench").innerHTML=(s.bench||[]).map(p=>cardHTML(p,false)).join("");
+}
+function render(){
+  const f=F[cur];$("idx").textContent=cur+1;$("turn").textContent=f.turn;$("act").textContent=f.act||"—";
+  renderSide(f.opp,"op");renderSide(f.me,"me");$("sl").value=cur;
+}
+function showCard(id){
+  const m=DB[id];if(!m)return;
+  let h='<span class="x" onclick="closeM()">×</span><h3>'+(lang==="jp"?m.jp:m.en)+'</h3>';
+  const tn=m.type>=0&&ET[m.type]?ET[m.type][0]:"";
+  h+='<div class="meta">'+m.stage+(m.hp?' ・ HP'+m.hp:'')+(tn?' ・ '+tn+'タイプ':'')+(m.cat===0?' ・ 倒すと'+m.prize+'サイド':'')+'</div>';
+  (m.abil||[]).forEach(a=>{h+='<div class="abil"><div class="nm">特性: '+a.n+'</div><div class="tx">'+a.t+'</div></div>';});
+  (m.atk||[]).forEach(a=>{h+='<div class="atk"><div class="h"><span class="nm">'+pips(a.c)+' '+a.n+'</span><span class="dm">'+(a.d||"")+'</span></div>'+(a.t?'<div class="tx">'+a.t+'</div>':'')+'</div>';});
+  $("sheet").innerHTML=h;$("modal").classList.add("on");
+}
+function closeM(){$("modal").classList.remove("on");}
+$("modal").onclick=e=>{if(e.target.id==="modal")closeM();};
+$("prev").onclick=()=>{cur=Math.max(0,cur-1);render();};
+$("next").onclick=()=>{cur=Math.min(F.length-1,cur+1);render();};
+$("sl").oninput=e=>{cur=+e.target.value;render();};
+$("lang").onclick=()=>{lang=lang==="jp"?"en":"jp";$("lang").textContent=lang==="jp"?"EN":"日本語";render();};
+$("play").onclick=()=>{
+  if(timer){clearInterval(timer);timer=null;$("play").textContent="▶ 再生";return;}
+  $("play").textContent="⏸ 停止";
+  timer=setInterval(()=>{if(cur>=F.length-1){clearInterval(timer);timer=null;$("play").textContent="▶ 再生";return;}cur++;render();},1000);
+};
+render();
+</script>
+</body>
+</html>

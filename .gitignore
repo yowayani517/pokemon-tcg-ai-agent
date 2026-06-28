@@ -59,3 +59,9 @@ submission_plan.tar.gz
 # 録画ログ(生成物)
 experiments/battle_log*.json
 experiments/battle_best.json
+
+# リプレイビューア生成物・参照ノート
+experiments/replay.html
+experiments/replay_win.html
+experiments/visref/
+experiments/battle_replay.html
