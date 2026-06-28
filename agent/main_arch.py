@@ -1,11 +1,9 @@
-"""PTCG AI - Archaludon ex (鋼) + Cinderace エンジン Planning Agent.
+"""PTCG AI - Archaludon ex (鋼) Planning Agent.
 
-現環境#1の標準Archaludon構成(Archaludon ex + エースバーン + シーラカンス)用。
-設計は「ターン頭で攻撃プランを1つ確定→全ての手をそれに従属」方式。
-エンジン=エースバーン(Cinderace): 特性で初手バトル場に出し、技ターボフレアで山から
-基本鋼エネを最大3枚ベンチに加速→Duraludonを育てる→Archaludon exに進化(特性で捨て札
-からさらに鋼エネ加速)→3鋼たまったらエースバーンを逃げ(0)て入替→Metal Defender 220。
-依存は cg.api のみ。クラッシュセーフ。
+現環境#1のArchaludon exデッキ用。設計はStarmie版と同じ「ターン頭で攻撃プランを
+1つ確定→全ての手をそれに従属」方式。鋼単色なのでエネ種類の複雑さが無く、
+やる事は「Duraludon(たね130HP)→Archaludon ex に進化(特性で鋼エネ自動加速)→
+3鋼でMetal Defender 220」の一直線＝AIが最も回しやすい。依存は cg.api のみ。
 """
 from __future__ import annotations
 
@@ -19,32 +17,29 @@ from cg.api import (
 
 
 class C:
-    DURALUDON = 169       # たね HP130 -> Archaludon ex
-    ARCHALUDON = 190      # Archaludon ex HP300, Metal Defender 220(鋼3), 進化時に捨て札から鋼エネ2加速
-    CINDERACE = 666       # エンジン: 特性で初手場に出る・ターボフレアで鋼エネ3枚をベンチ加速・逃げ0
+    DURALUDON = 169       # たね HP130
+    ARCHALUDON = 190      # Archaludon ex HP300, Metal Defender 220(鋼3), 特性で進化時に捨て札から鋼エネ2加速
     RELICANTH = 57        # たね HP100 (サブ)
     METAL = 8             # 基本鋼エネ
     HEROS_CAPE = 1159
     BOSS = 1182
+    CARMINE = 1192
     LILLIE = 1227
-    EXPLORERS = 1185      # Explorer's Guidance (ドロー/サーチ)
+    JUDGE = 1213
     ULTRA_BALL = 1121
     POKEGEAR = 1122
     POKE_PAD = 1152
     NIGHT_STRETCHER = 1097
-    JUMBO_ICE = 1147      # Jumbo Ice Cream (回復系アイテム)
     FULL_METAL_LAB = 1244
 
 
-TURBO_FLARE = 965     # Cinderace: 1エネ50 + 山から基本エネ最大3枚をベンチに加速
-METAL_LINE = {169, 190}
 ALAKAZAM_LINE = {109, 742, 245}
 WALL_IDS = {344, 345}
 LOW_DECK_COUNT = 8
 
-DECK = ([8] * 11 + [169] * 4 + [190] * 4 + [666] * 4 + [57] * 1 + [1159] * 1 +
-        [1097] * 3 + [1121] * 4 + [1122] * 4 + [1147] * 4 + [1152] * 4 +
-        [1182] * 4 + [1185] * 4 + [1227] * 4 + [1244] * 4)
+DECK = ([8] * 14 + [190] * 4 + [169] * 4 + [57] * 1 + [1159] * 1 + [1097] * 4 +
+        [1121] * 4 + [1122] * 4 + [1152] * 4 + [1182] * 4 + [1192] * 4 +
+        [1227] * 4 + [1213] * 4 + [1244] * 4)
 
 
 def _load_deck():
@@ -164,6 +159,9 @@ class ArchPolicy:
     def _opp_board(self):
         return list(self.opp.active) + list(self.opp.bench)
 
+    def _opp_is_wall(self):
+        return any(p is not None and p.id in WALL_IDS for p in self._opp_board())
+
     def _low_deck(self):
         return self.me.deckCount <= LOW_DECK_COUNT
 
@@ -171,14 +169,6 @@ class ArchPolicy:
         if self.state.energyAttached:
             return 0
         return 1 if self.hand_counts[C.METAL] >= 1 else 0
-
-    def _develop_need(self):
-        """ベンチ含む鋼ライン(Duraludon/Archaludon)が3エネに届くまでの合計(加速の価値)。"""
-        need = 0
-        for pk in self._my_board():
-            if pk is not None and pk.id in METAL_LINE:
-                need += max(0, 3 - len(pk.energies))
-        return need
 
     def _can_evolve_to_arch(self, board_index):
         for o in self.select.option:
@@ -194,16 +184,17 @@ class ArchPolicy:
 
     def _attacks_for(self, pk, bi):
         ids = list(CARD_TABLE.get(pk.id).attacks) if CARD_TABLE.get(pk.id) else []
-        accel = 0
+        evolve_accel = 0
         if pk.id == C.DURALUDON and self._can_evolve_to_arch(bi):
             ids = list(CARD_TABLE[C.ARCHALUDON].attacks)
-            accel = min(2, sum(1 for c in self.me.discard if c.id == C.METAL))  # Assemble Alloy
+            # 進化すると特性で捨て札から鋼エネを最大2枚加速できる
+            evolve_accel = min(2, sum(1 for c in self.me.discard if c.id == C.METAL))
         out = []
         for aid in ids:
             a = ATK_TABLE.get(aid)
             if not a or a.damage <= 0:
                 continue
-            out.append((aid, len(a.energies), a.damage, accel))
+            out.append((aid, len(a.energies), a.damage, evolve_accel))
         return out
 
     def _plan_attack(self):
@@ -214,6 +205,7 @@ class ArchPolicy:
         best = -1
         board = self._my_board()
         extra = self._attachable_now()
+        opp_bench = sum(1 for x in self.opp.bench if x is not None)
         for ai, pk in enumerate(board):
             if pk is None:
                 continue
@@ -221,25 +213,7 @@ class ArchPolicy:
                 continue
             energy_now = len(pk.energies)
             for aid, need, dmg, accel in self._attacks_for(pk, ai):
-                # --- エンジン: エースバーンのターボフレア(鋼エネをベンチに加速) ---
-                if aid == TURBO_FLARE:
-                    if ai != 0:
-                        continue  # エースバーンが既にアクティブの時だけ
-                    if energy_now < need and energy_now + extra < need:
-                        continue
-                    dneed = self._develop_need()
-                    if dneed <= 0:
-                        continue
-                    opp_act = self.opp.active[0] if self.opp.active else None
-                    chip_ko = bool(opp_act and opp_act.hp <= 50)
-                    sc = 2000 + dneed * 500 + (1500 if chip_ko else 0)
-                    if sc > best:
-                        best = sc
-                        plan = AttackPlan(ai, 0, aid, chip_ko, energy_now < need)
-                    continue
-
-                # --- 通常の攻撃プラン ---
-                avail = energy_now + extra + accel
+                avail = energy_now + extra + accel   # 今ターン用意できる総エネ(手動+進化加速)
                 needs_energy = False
                 if energy_now < need:
                     if avail >= need:
@@ -268,6 +242,7 @@ class ArchPolicy:
                         sc *= damage / max(1, opk.hp)
                     sc += 600 if ai == 0 else 0
                     sc += 300 if ti == 0 else 0
+                    # マッチアップ: 育つ前の脅威・自分を倒す相手を優先処理
                     if opk.id in ALAKAZAM_LINE:
                         sc += 1800 if opk.id == 245 else 1200
                     odmg = _max_atk_damage(od)
@@ -334,12 +309,12 @@ class ArchPolicy:
     def _energy_target_score(self, pk, active):
         n = len(pk.energies)
         s = 8000 + (50 if active else 0)
-        if pk.id in METAL_LINE:
+        if pk.id == C.ARCHALUDON:
             s += 300 if n < 3 else -200
             if self.opp_is_alakazam and active and n >= 1:
-                s -= 250
-            elif not active and n < 3:
-                s += 80
+                s -= 250          # 対エスパー: アクティブに盛りすぎない
+        elif pk.id == C.DURALUDON:
+            s += 150 if n < 3 else -100   # 進化後を見越して少し乗せる
         else:
             s -= 300
         return s
@@ -370,7 +345,7 @@ class ArchPolicy:
             return 0
         s = 9000 + len(pk.energies)
         if ev is not None and ev.id == C.ARCHALUDON:
-            s += 1000   # 進化=特性で鋼エネ加速できる
+            s += 1000   # 進化=特性で加速できるので最優先級
         return s
 
     def _score_play(self, o):
@@ -387,9 +362,7 @@ class ArchPolicy:
             line = self.field_counts[C.DURALUDON] + self.field_counts[C.ARCHALUDON]
             return -1 if line >= 3 else 20000
         if card.id == C.RELICANTH:
-            return 7000 if self.field_counts[C.RELICANTH] == 0 else -1
-        if card.id == C.CINDERACE:
-            return 5  # 基本は特性で初手場に出る。手出しは想定外
+            return 8000 if self.field_counts[C.RELICANTH] == 0 else -1
         return 15000
 
     def _score_play_trainer(self, card):
@@ -397,25 +370,20 @@ class ArchPolicy:
         if cid == C.BOSS:
             return 3200 if plan.target >= 1 else -1
         if cid == C.ULTRA_BALL:
+            # Archaludon/Duraludonが場に揃ってないなら最優先級でサーチ
             need = self.field_counts[C.ARCHALUDON] + self.field_counts[C.DURALUDON] < 2
             return 3000 if need else 1500
         if cid == C.POKEGEAR:
             return 2400
         if cid == C.POKE_PAD:
             return 2300
-        if cid in (C.LILLIE, C.EXPLORERS):
+        if cid in (C.LILLIE, C.CARMINE, C.JUDGE):
             if self._low_deck():
                 return -1
             hc = self.me.handCount
             return 3000 if hc <= 4 else (1500 if hc <= 6 else 400)
         if cid == C.NIGHT_STRETCHER:
             return 1500
-        if cid == C.JUMBO_ICE:
-            # 回復: アクティブが傷ついてる時だけ
-            a = self.me.active[0] if self.me.active else None
-            if a and a.maxHp - a.hp >= 60:
-                return 2500
-            return -1
         if cid == C.FULL_METAL_LAB:
             return 1200 if not self.state.stadium else -1
         return 1000
@@ -429,7 +397,7 @@ class ArchPolicy:
             return self._score_active_choice(o, card)
         if ctx in (SelectContext.SETUP_ACTIVE_POKEMON, SelectContext.SETUP_BENCH_POKEMON,
                    SelectContext.TO_BENCH, SelectContext.TO_FIELD):
-            return self._score_to_field(card, ctx)
+            return self._score_to_field(card)
         if ctx == SelectContext.TO_HAND:
             return self._score_to_hand(card)
         if ctx == SelectContext.ATTACH_FROM and isinstance(card, Pokemon):
@@ -452,22 +420,13 @@ class ArchPolicy:
             s += 10
         return s
 
-    def _score_to_field(self, card, ctx):
-        # セットアップのアクティブはエースバーン(エンジン)、それ以外/ベンチはDuraludon優先
-        if ctx == SelectContext.SETUP_ACTIVE_POKEMON:
-            if card.id == C.CINDERACE:
-                return 100
-            if card.id == C.DURALUDON:
-                return 30
-            return 1
+    def _score_to_field(self, card):
         if card.id == C.DURALUDON:
-            return 60
+            return 50
         if card.id == C.ARCHALUDON:
             return 40
         if card.id == C.RELICANTH:
             return 20
-        if card.id == C.CINDERACE:
-            return 15
         return 10
 
     def _score_to_hand(self, card):
@@ -482,10 +441,11 @@ class ArchPolicy:
         return s
 
     def _score_discard(self, card):
-        if card.id in (C.ARCHALUDON, C.DURALUDON, C.CINDERACE):
+        # Assemble Alloy用に鋼エネを捨て札に置くのは悪くない。重要札は残す。
+        if card.id in (C.ARCHALUDON, C.DURALUDON):
             return -200
         if card.id == C.METAL:
-            return 50   # 捨て札の鋼は進化加速(Assemble Alloy)で回収できる
+            return 50   # 捨て札の鋼は進化加速で回収できる
         return 0
 
 
