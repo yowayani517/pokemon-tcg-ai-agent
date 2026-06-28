@@ -346,6 +346,8 @@ class ArchPolicy:
         s = 9000 + len(pk.energies)
         if ev is not None and ev.id == C.ARCHALUDON:
             s += 1000   # 進化=特性で加速できるので最優先級
+            if o.inPlayArea == AreaType.ACTIVE:
+                s += 400   # アクティブを先に300HP化=脆い130Duraludonで殴られ続けない
         return s
 
     def _score_play(self, o):

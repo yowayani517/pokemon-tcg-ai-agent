@@ -65,3 +65,9 @@ experiments/replay.html
 experiments/replay_win.html
 experiments/visref/
 experiments/battle_replay.html
+experiments/curmeta/
+experiments/arch_*.log
+experiments/t_*.log
+experiments/chk_*.log
+experiments/psy_*.log
+experiments/arch_loss.html
