@@ -266,6 +266,10 @@ class ArchPolicy:
                     # マッチアップ: 育つ前の脅威・自分を倒す相手を優先処理
                     if opk.id in ALAKAZAM_LINE:
                         sc += 1800 if opk.id == 245 else 1200
+                        # 対フーディン必勝法(上位ログ): 進化前(ケーシィ/ユンゲラー)を
+                        # KOできるなら最優先で刈り、フーディンを設置させない=育つ前に詰ます
+                        if ko:
+                            sc += 3500
                     odmg = _max_atk_damage(od)
                     if self.my_act_hp and odmg >= self.my_act_hp:
                         sc += 900 if ko else 300

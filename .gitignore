@@ -76,3 +76,5 @@ experiments/rr.log
 experiments/*_md.log
 experiments/e_*.log
 experiments/f_*.log
+experiments/psy_replays/
+experiments/fd_*.log
