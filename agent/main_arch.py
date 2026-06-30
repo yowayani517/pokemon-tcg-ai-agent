@@ -407,8 +407,14 @@ class ArchPolicy:
             # 進化パーツのサーチ＋コストで鋼を捨て札に送りAssemble Alloyを起動する二役。
             need = self.field_counts[C.ARCHALUDON] + self.field_counts[C.DURALUDON] < 2
             metal_in_disc = sum(1 for c in self.me.discard if c.id == C.METAL)
-            # コストで鋼を捨て札に仕込みAssemble Alloyを起動(=進化即3エネ)。
-            # この高速化が対Starmie等の勝因。
+            # 重要(ミラー分析): 進化(9000)より先にUltra Ballで鋼を捨て札に仕込まないと
+            # 進化時のAssemble Alloyが不発になる。進化前のジュラルドンがいて捨て札の鋼が
+            # 足りないなら、進化より優先して撃つ(=進化即3エネ=ミラー勝因の高速化)。
+            about_to_evolve = self.field_counts[C.DURALUDON] >= 1
+            fuel_for_alloy = (about_to_evolve and metal_in_disc < 2
+                              and self.hand_counts[C.METAL] >= 1)
+            if fuel_for_alloy:
+                return 9500   # 進化より先に捨て札へ鋼を仕込む
             fuel = self.hand_counts[C.METAL] >= 2 and metal_in_disc < 2
             return 3000 if (need or fuel) else 1500
         if cid == C.POKEGEAR:

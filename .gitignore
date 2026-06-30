@@ -78,3 +78,8 @@ experiments/e_*.log
 experiments/f_*.log
 experiments/psy_replays/
 experiments/fd_*.log
+experiments/mirror_replays/
+experiments/dl_mirrors.log
+experiments/arch_mir.log
+experiments/arch_md.log
+experiments/arch_fd.log
