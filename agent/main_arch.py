@@ -17,29 +17,36 @@ from cg.api import (
 
 
 class C:
-    DURALUDON = 169       # たね HP130
-    ARCHALUDON = 190      # Archaludon ex HP300, Metal Defender 220(鋼3), 特性で進化時に捨て札から鋼エネ2加速
-    RELICANTH = 57        # たね HP100 (サブ)
+    DURALUDON = 169       # たね HP130 ジュラルドン
+    ARCHALUDON = 190      # ブリジュラスex HP300, メタルディフェンダー220(鋼3), 特性で進化時に捨て札から鋼エネ2加速
+    RELICANTH = 57        # ジーランス HP100。特性メモリーダイブ=進化ポケが進化前の技を使える
     METAL = 8             # 基本鋼エネ
     HEROS_CAPE = 1159
     BOSS = 1182
-    CARMINE = 1192
-    LILLIE = 1227
-    JUDGE = 1213
+    CARMINE = 1192        # ゼイユ(ドロー)
+    LILLIE = 1227         # リーリエの決心
+    JUDGE = 1213          # ジャッジマン
     ULTRA_BALL = 1121
     POKEGEAR = 1122
     POKE_PAD = 1152
     NIGHT_STRETCHER = 1097
+    SWITCH = 1123         # ポケモンいれかえ(無料逃げ)
     FULL_METAL_LAB = 1244
+
+
+# 技ID
+METAL_DEFENDER = 253   # ブリジュラス: 鋼3 -> 220
+HAMMER_IN = 223        # ジュラルドン: 鋼1 -> 30 (メモリーダイブでブリジュラスも使える=進化即攻撃)
+RAGING_HAMMER = 224    # ジュラルドン: 鋼鋼+任意 -> 80 + 自分のダメカン×10 (傷ついた程強い)
 
 
 ALAKAZAM_LINE = {109, 742, 245}
 WALL_IDS = {344, 345}
 LOW_DECK_COUNT = 8
 
-DECK = ([8] * 14 + [190] * 4 + [169] * 4 + [57] * 1 + [1159] * 1 + [1097] * 4 +
-        [1121] * 4 + [1122] * 4 + [1152] * 4 + [1182] * 4 + [1192] * 4 +
-        [1227] * 4 + [1213] * 4 + [1244] * 4)
+DECK = ([8] * 14 + [190] * 4 + [169] * 4 + [57] * 2 + [1159] * 1 + [1097] * 4 +
+        [1121] * 4 + [1122] * 3 + [1152] * 4 + [1182] * 3 + [1192] * 4 +
+        [1227] * 4 + [1213] * 4 + [1244] * 3 + [1123] * 2)
 
 
 def _load_deck():
@@ -182,19 +189,33 @@ class ArchPolicy:
                 return True
         return False
 
+    def _memory_dive(self):
+        # ジーランスが場にいれば特性メモリーダイブ=進化ポケが進化前の技を使える
+        return any(p is not None and p.id == C.RELICANTH for p in self._my_board())
+
     def _attacks_for(self, pk, bi):
         ids = list(CARD_TABLE.get(pk.id).attacks) if CARD_TABLE.get(pk.id) else []
         evolve_accel = 0
-        if pk.id == C.DURALUDON and self._can_evolve_to_arch(bi):
+        becomes_arch = pk.id == C.DURALUDON and self._can_evolve_to_arch(bi)
+        if becomes_arch:
             ids = list(CARD_TABLE[C.ARCHALUDON].attacks)
             # 進化すると特性で捨て札から鋼エネを最大2枚加速できる
             evolve_accel = min(2, sum(1 for c in self.me.discard if c.id == C.METAL))
+        # メモリーダイブ: ブリジュラス(進化後 or 今ブリジュラス化)はジュラルドンの技も使える
+        is_arch = pk.id == C.ARCHALUDON or becomes_arch
+        if is_arch and self._memory_dive():
+            for aid in (HAMMER_IN, RAGING_HAMMER):
+                if aid not in ids:
+                    ids.append(aid)
         out = []
         for aid in ids:
             a = ATK_TABLE.get(aid)
             if not a or a.damage <= 0:
                 continue
-            out.append((aid, len(a.energies), a.damage, evolve_accel))
+            dmg = a.damage
+            if aid == RAGING_HAMMER:
+                dmg = 80 + (pk.maxHp - pk.hp)   # 自分のダメカン×10=受けたダメ分だけ上乗せ
+            out.append((aid, len(a.energies), dmg, evolve_accel))
         return out
 
     def _plan_attack(self):
@@ -369,6 +390,13 @@ class ArchPolicy:
 
     def _score_play_trainer(self, card):
         cid = card.id
+        if cid == C.SWITCH:
+            # 無料逃げ: プランのアタッカーがベンチなら盤面に出す。こんらん中も脱出。
+            if plan.attacker >= 1:
+                return 2600
+            if self.my_confused and self._has_ready_bench():
+                return 2600
+            return -1
         if cid == C.BOSS:
             return 3200 if plan.target >= 1 else -1
         if cid == C.ULTRA_BALL:

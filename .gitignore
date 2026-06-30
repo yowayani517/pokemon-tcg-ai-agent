@@ -71,3 +71,8 @@ experiments/t_*.log
 experiments/chk_*.log
 experiments/psy_*.log
 experiments/arch_loss.html
+experiments/top_arch_replays/
+experiments/rr.log
+experiments/*_md.log
+experiments/e_*.log
+experiments/f_*.log
