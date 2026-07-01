@@ -486,12 +486,22 @@ class ArchPolicy:
             # 進化時のAssemble Alloyが不発になる。進化前のジュラルドンがいて捨て札の鋼が
             # 足りないなら、進化より優先して撃つ(=進化即3エネ=ミラー勝因の高速化)。
             about_to_evolve = self.field_counts[C.DURALUDON] >= 1
-            fuel_for_alloy = (about_to_evolve and metal_in_disc < 2
-                              and self.hand_counts[C.METAL] >= 1)
+            have_metal_hand = self.hand_counts[C.METAL] >= 1
+            fuel_for_alloy = (about_to_evolve and metal_in_disc < 2 and have_metal_hand)
             if fuel_for_alloy:
-                return 9500   # 進化より先に捨て札へ鋼を仕込む
-            fuel = self.hand_counts[C.METAL] >= 2 and metal_in_disc < 2
-            return 3000 if (need or fuel) else 1500
+                return 9500   # 進化より先に手札の鋼を捨て札へ仕込む(Alloy即3エネ)
+            # ハイパーボールの主目的は「エネを墓地に送る」+必要なピース確保。
+            # 手札にエネが無く、ピースも足りてるなら撃たない(手札温存・回転はドローサポで)。
+            no_line = self.field_counts[C.ARCHALUDON] + self.field_counts[C.DURALUDON] == 0
+            need_arch = (self.field_counts[C.DURALUDON] >= 1
+                         and self.field_counts[C.ARCHALUDON] + self.hand_counts[C.ARCHALUDON] == 0)
+            if no_line:
+                return 3000   # 場に核0=何としてもジュラルドンを探す(エネ無くても可)
+            if need_arch:
+                return 2600   # 進化先が無い=ブリジュラスを探す
+            if have_metal_hand and metal_in_disc < 2:
+                return 2400   # 手札の鋼を墓地へ送って回転+Alloy燃料
+            return -1         # エネ無し&ピース足りてる=撃たない(手札を保ちデッキ回転優先)
         if cid == C.POKEGEAR:
             return 3400   # サポートをサーチ＋デッキ圧縮。サポート本体より先に撃つ
         if cid == C.POKE_PAD:
