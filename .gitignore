@@ -83,3 +83,9 @@ experiments/dl_mirrors.log
 experiments/arch_mir.log
 experiments/arch_md.log
 experiments/arch_fd.log
+experiments/wall_fix.log
+experiments/arch_wallfix.log
+experiments/arch_lab.log
+experiments/arch_fx.log
+experiments/n40_*.log
+experiments/fx_*.log

@@ -156,6 +156,7 @@ class ArchPolicy:
             self.opp_max_dmg = max(self.opp_max_dmg, _max_atk_damage(d))
             if d and d.energyType == EnergyType.LIGHTNING:
                 self.opp_has_lightning = True
+        self.opp_is_wall = self._opp_is_wall()
         self.my_confused = bool(getattr(self.me, "confused", False))
         a0 = self.me.active[0] if self.me.active else None
         self.my_act_hp = a0.hp if a0 else 0
@@ -196,7 +197,10 @@ class ArchPolicy:
     def _attacks_for(self, pk, bi):
         ids = list(CARD_TABLE.get(pk.id).attacks) if CARD_TABLE.get(pk.id) else []
         evolve_accel = 0
-        becomes_arch = pk.id == C.DURALUDON and self._can_evolve_to_arch(bi)
+        # 対イワパレス: ブリジュラスex(進化後)は特性で攻撃無効。進化せずジュラルドン(非ex)の
+        # レイジングハンマー/ハンマーインで殴るのが正解なので、進化想定を切る。
+        becomes_arch = (pk.id == C.DURALUDON and self._can_evolve_to_arch(bi)
+                        and not self.opp_is_wall)
         if becomes_arch:
             ids = list(CARD_TABLE[C.ARCHALUDON].attacks)
             # 進化すると特性で捨て札から鋼エネを最大2枚加速できる
@@ -241,10 +245,15 @@ class ArchPolicy:
                         needs_energy = True
                     else:
                         continue
+                attacker_is_ex = (pk.id == C.ARCHALUDON)
                 for ti, opk in enumerate(self._opp_board()):
                     if opk is None:
                         continue
                     if ti != 0 and not self.can_gust:
+                        continue
+                    # イワパレス(345)の特性=exの攻撃を完全無効。ブリジュラスexでは倒せない
+                    # ので、その組み合わせは計画しない(→非exジュラルドンの攻撃が選ばれる)。
+                    if attacker_is_ex and opk.id == 345:
                         continue
                     damage = dmg
                     od = CARD_TABLE.get(opk.id)
@@ -370,6 +379,10 @@ class ArchPolicy:
             return 0
         s = 9000 + len(pk.energies)
         if ev is not None and ev.id == C.ARCHALUDON:
+            # 対イワパレス: ブリジュラスexは特性で攻撃無効化される。進化せず非exの
+            # ジュラルドン(レイジングハンマー等)で殴るため、進化は避ける。
+            if self.opp_is_wall:
+                return 200
             s += 1000   # 進化=特性で加速できるので最優先級
             if o.inPlayArea == AreaType.ACTIVE:
                 s += 400   # アクティブを先に300HP化=脆い130Duraludonで殴られ続けない
