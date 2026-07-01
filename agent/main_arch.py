@@ -143,6 +143,8 @@ class ArchPolicy:
                     c = get_card(self.obs, AreaType.HAND, o.index, self.my)
                     if c and c.id == C.BOSS:
                         self.can_gust = True
+                    elif c and c.id == C.SWITCH:
+                        self.can_switch = True   # ポケモンいれかえ=無料でベンチの本命を前へ
                 elif o.type == OptionType.RETREAT:
                     self.can_switch = True
 
@@ -345,6 +347,29 @@ class ArchPolicy:
                 return True
         return False
 
+    def _have_switch_item(self):
+        return any(c.id == C.SWITCH for c in (self.me.hand or []))
+
+    def _can_retreat_active(self):
+        act = self.me.active[0] if self.me.active else None
+        if not act:
+            return False
+        d = CARD_TABLE.get(act.id)
+        cost = d.retreatCost if d else 0
+        return len(act.energies) >= cost
+
+    def _bench_ready_arch(self):
+        # ベンチに攻撃態勢(3エネ)の本命が完成しているか。壁相手なら非exジュラルドンでもOK。
+        for pk in self.me.bench:
+            if pk is None:
+                continue
+            e = len(pk.energies)
+            if pk.id == C.ARCHALUDON and e >= 3:
+                return True
+            if self.opp_is_wall and pk.id == C.DURALUDON and e >= 3:
+                return True
+        return False
+
     def _promote_worth_it(self):
         # ベンチの攻撃役を前に出す価値があるか。ジーランス(壁役)を無駄に引っ込めないため、
         # 「準備できた本命(3エネのブリジュラス、壁相手なら3エネのジュラルドン)」か
@@ -382,8 +407,15 @@ class ArchPolicy:
         elif pk.id == C.DURALUDON:
             s += 150 if n < 3 else -100   # 進化後を見越して少し乗せる
         else:
-            # ジーランス等の非ライン(壁役)には絶対にエネを張らない(浪費)。
-            # エネは最速でジュラルドン/ブリジュラスに集中し、3エネ→進化→攻撃を最短で。
+            # 非ライン(ジーランス壁役): 育成中はエネを張らない(浪費)。
+            # ただしベンチに3エネの本命(ブリジュラス)が完成しているのに、アクティブの
+            # ジーランスに逃げるエネが無くて交代できない=最悪。この時だけは逃げコスト分を
+            # アクティブに乗せ、同ターンに逃げて→完成した本命を前に出して殴る。
+            # (Switchアイテムがあるならそちらで無料交代するのでエネは張らない)
+            if (active and self._bench_ready_arch()
+                    and not self._can_retreat_active()
+                    and not self._have_switch_item()):
+                return 6500
             return -1000
         return s
 
