@@ -382,7 +382,9 @@ class ArchPolicy:
         elif pk.id == C.DURALUDON:
             s += 150 if n < 3 else -100   # 進化後を見越して少し乗せる
         else:
-            s -= 300
+            # ジーランス等の非ライン(壁役)には絶対にエネを張らない(浪費)。
+            # エネは最速でジュラルドン/ブリジュラスに集中し、3エネ→進化→攻撃を最短で。
+            return -1000
         return s
 
     def _score_attach(self, o):

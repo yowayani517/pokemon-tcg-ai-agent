@@ -104,3 +104,7 @@ experiments/arch_v4.log
 experiments/arch_v5.log
 experiments/arch_v6.log
 experiments/arch_v7.log
+experiments/arch_v8.log
+experiments/v3_replays/
+_stage_arch/
+_va/
