@@ -435,14 +435,41 @@ class ArchPolicy:
             fuel = self.hand_counts[C.METAL] >= 2 and metal_in_disc < 2
             return 3000 if (need or fuel) else 1500
         if cid == C.POKEGEAR:
-            return 2400
+            return 3400   # サポートをサーチ＋デッキ圧縮。サポート本体より先に撃つ
         if cid == C.POKE_PAD:
-            return 2300
-        if cid in (C.LILLIE, C.CARMINE, C.JUDGE):
+            return 3300   # ポケモンをサーチ＋圧縮。ドローサポより先に撃つ
+        if cid == C.LILLIE:
+            # リーリエ: 手札を捨てて6枚(残サイド6なら8)引く純ドロー。手札が細い時に。
             if self._low_deck():
                 return -1
             hc = self.me.handCount
-            return 3000 if hc <= 4 else (1500 if hc <= 6 else 400)
+            return 3000 if hc <= 4 else (1500 if hc <= 5 else -1)
+        if cid == C.CARMINE:
+            # ゼイユ: 手札全捨て→5枚。主目的は手札の鋼を捨て札へ送りAssemble Alloyの
+            # 燃料にすること(進化時に捨て札から鋼2枚を回収)。加えて手札が悪い時の引き直し。
+            if self._low_deck():
+                return -1
+            metal_disc = sum(1 for c in self.me.discard if c.id == C.METAL)
+            if (self.field_counts[C.DURALUDON] >= 1 and self.hand_counts[C.METAL] >= 1
+                    and metal_disc < 2):
+                return 3100   # 鋼を捨て札に仕込む+引き直し(主目的)
+            return 2800 if self.me.handCount <= 4 else 600
+        if cid == C.JUDGE:
+            # ジャッジマン: 両者が手札を山に戻し4枚引く。相手も引けるので使いどころ厳選。
+            #  ・自分の手札が多く相手が少ない時=相手を利するので絶対使わない
+            #  ・相手の手札が多い(6+)時=4枚に削る妨害
+            #  ・自分の手札が細い(3以下)時=引き直し
+            if self._low_deck():
+                return -500
+            my = self.me.handCount
+            op = self.opp.handCount
+            if my >= 5 and op <= 4:
+                return -500                     # 自分損・相手得=END(-100)より下=絶対使わない
+            if op >= 6 and my <= op + 1:
+                return 3000                     # 相手の大きい手札を削る妨害
+            if my <= 3:
+                return 2600                     # 自分の手札が細い=引き直し
+            return -500                          # 微妙な時も使わない(END優先)
         if cid == C.NIGHT_STRETCHER:
             return 1500
         if cid == C.FULL_METAL_LAB:
@@ -466,7 +493,7 @@ class ArchPolicy:
             return self._score_active_choice(o, card)
         if ctx in (SelectContext.SETUP_ACTIVE_POKEMON, SelectContext.SETUP_BENCH_POKEMON,
                    SelectContext.TO_BENCH, SelectContext.TO_FIELD):
-            return self._score_to_field(card)
+            return self._score_to_field(card, ctx)
         if ctx == SelectContext.TO_HAND:
             return self._score_to_hand(card)
         if ctx == SelectContext.ATTACH_FROM and isinstance(card, Pokemon):
@@ -489,7 +516,19 @@ class ArchPolicy:
             s += 10
         return s
 
-    def _score_to_field(self, card):
+    def _score_to_field(self, card, ctx=None):
+        if ctx == SelectContext.SETUP_ACTIVE_POKEMON:
+            # 前衛はジーランス(非ex・再入手可・メモリーダイブ源)。育てたい本体ジュラルドン
+            # (→ブリジュラス)はベンチで安全に育て、準備できてから前に出す。
+            # 生ジュラルドンを前に晒して倒されると元も子もない。
+            if card.id == C.RELICANTH:
+                return 60
+            if card.id == C.DURALUDON:
+                return 20
+            if card.id == C.ARCHALUDON:
+                return 15
+            return 5
+        # ベンチ/その他: 育成する本体ジュラルドンを最優先で並べる
         if card.id == C.DURALUDON:
             return 50
         if card.id == C.ARCHALUDON:

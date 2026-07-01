@@ -93,3 +93,8 @@ experiments/my_replays/
 experiments/ladder_wall.csv
 experiments/curmeta/99_LadderWall.csv
 experiments/wallreal*.log
+experiments/luc.log
+experiments/wall3.log
+experiments/arch_setup.log
+experiments/arch_sup.log
+experiments/curmeta/50_Lucario.csv
