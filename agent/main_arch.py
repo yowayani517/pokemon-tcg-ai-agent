@@ -387,6 +387,13 @@ class ArchPolicy:
             # ジュラルドン(レイジングハンマー等)で殴るため、進化は避ける。
             if self.opp_is_wall:
                 return 200
+            # 進化タイミング: このデッキのキモは進化時に特性で捨て札から鋼エネ2枚回収。
+            # 既にブリジュラスがいる(=2体目)なら、捨て札に鋼が溜まるまで進化を保留し、
+            # Alloyの旨味(=即エネ)を活かす。1体目(攻撃役が要る)は捨て札関係なく進化。
+            metal_disc = sum(1 for c in self.me.discard if c.id == C.METAL)
+            have_arch = self.field_counts[C.ARCHALUDON] >= 1
+            if have_arch and metal_disc < 2:
+                return 500   # 2体目は墓地に鋼が無いうちは保留(他に良い手があれば譲る)
             s += 1000   # 進化=特性で加速できるので最優先級
             if o.inPlayArea == AreaType.ACTIVE:
                 s += 400   # アクティブを先に300HP化=脆い130Duraludonで殴られ続けない
@@ -412,7 +419,12 @@ class ArchPolicy:
     def _score_play_trainer(self, card):
         cid = card.id
         if cid == C.SWITCH:
-            # 無料逃げ: プランのアタッカーがベンチなら盤面に出す。こんらん中も脱出。
+            # 無料逃げ: プランの攻撃役がベンチにいる時だけ前に出す。二度使い(入れ替えて
+            # 入れ替えて元通り)は無意味なので、既にアクティブが充電済みブリジュラスなら使わない。
+            act = self.me.active[0] if self.me.active else None
+            active_ready = (act and act.id == C.ARCHALUDON and len(act.energies) >= 3)
+            if active_ready:
+                return -1
             if plan.attacker >= 1:
                 return 2600
             if self.my_confused and self._has_ready_bench():
@@ -422,6 +434,14 @@ class ArchPolicy:
             return 3200 if plan.target >= 1 else -1
         if cid == C.ULTRA_BALL:
             # 進化パーツのサーチ＋コストで鋼を捨て札に送りAssemble Alloyを起動する二役。
+            # ただしサポートやキーポケを切ってまで撃たない(次に繋がらない)。場に核が全く
+            # 無い時だけは例外的に強行(ジュラルドンが無いと始まらない)。
+            no_line = self.field_counts[C.ARCHALUDON] + self.field_counts[C.DURALUDON] == 0
+            protected = {C.LILLIE, C.CARMINE, C.JUDGE, C.BOSS, C.ARCHALUDON, C.DURALUDON}
+            safe = sum(1 for c in (self.me.hand or [])
+                       if c.id != C.ULTRA_BALL and c.id not in protected)
+            if not no_line and safe < 2:
+                return -1   # 安全に切れる札が2枚未満=サポ/キーを切る羽目→撃たず次ターンへ
             need = self.field_counts[C.ARCHALUDON] + self.field_counts[C.DURALUDON] < 2
             metal_in_disc = sum(1 for c in self.me.discard if c.id == C.METAL)
             # 重要(ミラー分析): 進化(9000)より先にUltra Ballで鋼を捨て札に仕込まないと
@@ -473,15 +493,15 @@ class ArchPolicy:
         if cid == C.NIGHT_STRETCHER:
             return 1500
         if cid == C.FULL_METAL_LAB:
+            # フルメタルラボ=自分の鋼ポケが受ける全ワザダメ-30。鋼単色の我々には常時有効。
             cur = self.state.stadium
-            # 対イワパレス: 壁はバトルコロシアムで我々のラボを上書きしてくる。フルメタルラボの
-            # -30(鋼が受けるダメ軽減)は壁のシザー120を90に下げ耐久を大きく上げるので、
-            # 相手スタジアムを上書きして-30を維持する。
-            if self.opp_is_wall:
-                if not cur or cur[0].id != C.FULL_METAL_LAB:
-                    return 2000
-                return -1
-            return 1200 if not cur else -1
+            if not cur:
+                return 1400   # スタジアム未設置なら張る
+            if cur[0].id != C.FULL_METAL_LAB:
+                # 相手のスタジアム(フーディンの有利スタジアム等)を上書きして-30を復活。
+                # 壁相手は特に重要(シザー120→90)なので最優先。
+                return 2200 if self.opp_is_wall else 1600
+            return -1         # 既に自分のラボが出てるなら不要
         return 1000
 
     def _score_card(self, o):
@@ -538,24 +558,40 @@ class ArchPolicy:
         return 10
 
     def _score_to_hand(self, card):
-        s = 200 - self.hand_counts[card.id] * 50
-        if card.id == C.ARCHALUDON:
-            s += 150 if self.field_counts[C.DURALUDON] >= 1 else 60
-        elif card.id == C.DURALUDON:
-            line = self.field_counts[C.DURALUDON] + self.field_counts[C.ARCHALUDON]
-            s += 120 if line == 0 else -10
-        elif card.id == C.METAL:
-            s += 60
-        return s
+        # サーチ/回収(ポケパッド・ハイパーボール・夜のタンカ)で持ってくるカードの優先度。
+        # 基本は核3種(ジュラルドン>ブリジュラス>ジーランス)のうち場・手札に無いものを補完。
+        def have(cid):
+            return self.field_counts[cid] + self.hand_counts[cid]
+        cid = card.id
+        if cid == C.DURALUDON:
+            return 400 - have(C.DURALUDON) * 130      # エース。薄いほど最優先
+        if cid == C.ARCHALUDON:
+            # 対イワパレス: ブリジュラスexは壁に無効で使わない。探しに行かない。
+            if self.opp_is_wall:
+                return -20
+            base = 370 - have(C.ARCHALUDON) * 130
+            if self.field_counts[C.DURALUDON] >= 1 and have(C.ARCHALUDON) == 0:
+                base += 220                            # ジュラルドンいて進化先が無い=進化して育てる最優先
+            return base
+        if cid == C.RELICANTH:
+            return 300 if have(C.RELICANTH) == 0 else -50   # 1枚で十分
+        if cid == C.METAL:
+            # 夜のタンカ等でエネは基本回収しない(進化時Alloyが墓地から自動で2枚つけるため)
+            return -30
+        return 0
 
     def _score_discard(self, card):
-        # Assemble Alloy(進化時に捨て札から鋼エネ2枚を加速)を回すため、鋼を捨て札へ。
-        # 重要札(進化パーツ)は残す。
-        if card.id in (C.ARCHALUDON, C.DURALUDON, C.RELICANTH):
-            return -200
-        if card.id == C.METAL:
-            return 120   # 捨て札の鋼=進化時に回収して即3エネ圏=最優先で捨て札に送る
-        return 0
+        # 捨て札に送るカードの優先度(ハイパーボールのコスト等)。
+        cid = card.id
+        if cid == C.METAL:
+            return 120   # 鋼=Assemble Alloyの燃料。最優先で捨て札へ(進化時に回収)
+        if cid in (C.LILLIE, C.CARMINE, C.JUDGE, C.BOSS):
+            return -150  # サポートは捨てない(次の動きに繋がらなくなる)
+        if cid in (C.ARCHALUDON, C.DURALUDON):
+            return -200  # 大事な進化パーツは残す
+        if cid == C.RELICANTH:
+            return -50   # 一応残したいが最悪OK(夜のタンカで戻せる)
+        return 0         # 余りグッズ等は捨ててよい
 
 
 def _fallback(select):

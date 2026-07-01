@@ -98,3 +98,5 @@ experiments/wall3.log
 experiments/arch_setup.log
 experiments/arch_sup.log
 experiments/curmeta/50_Lucario.csv
+experiments/arch_v3.log
+experiments/wallchk*.log
