@@ -320,7 +320,7 @@ class ArchPolicy:
         if t == OptionType.RETREAT:
             if self.my_confused and self._has_ready_bench():
                 return 5000
-            return 2000 if plan.attacker >= 1 else -1
+            return 2000 if self._promote_worth_it() else -1
         if t == OptionType.ATTACK:
             return self._score_attack(o)
         if t == OptionType.END:
@@ -331,6 +331,26 @@ class ArchPolicy:
         for pk in self.me.bench:
             if pk is not None and pk.id == C.ARCHALUDON and len(pk.energies) >= 1:
                 return True
+        return False
+
+    def _promote_worth_it(self):
+        # ベンチの攻撃役を前に出す価値があるか。ジーランス(壁役)を無駄に引っ込めないため、
+        # 「準備できた本命(3エネのブリジュラス、壁相手なら3エネのジュラルドン)」か
+        # 「KOできる時」だけ前に出す。育成中の生ジュラルドンは前に出さない。
+        if plan.attacker < 1:
+            return False
+        if plan.ko:
+            return True
+        bi = plan.attacker - 1
+        bench = self.me.bench
+        bp = bench[bi] if 0 <= bi < len(bench) else None
+        if not bp:
+            return False
+        e = len(bp.energies)
+        if bp.id == C.ARCHALUDON and e >= 3:
+            return True
+        if self.opp_is_wall and bp.id == C.DURALUDON and e >= 3:
+            return True
         return False
 
     def _score_attack(self, o):
@@ -426,7 +446,9 @@ class ArchPolicy:
             active_ready = (act and act.id == C.ARCHALUDON and len(act.energies) >= 3)
             if active_ready:
                 return -1
-            if plan.attacker >= 1:
+            # 準備できた本命(3エネのブリジュラス等)かKO時だけ前へ。育成中の生ジュラルドンでは
+            # ジーランス(壁役)を引っ込めない。
+            if self._promote_worth_it():
                 return 2600
             if self.my_confused and self._has_ready_bench():
                 return 2600
