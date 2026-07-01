@@ -89,3 +89,7 @@ experiments/arch_lab.log
 experiments/arch_fx.log
 experiments/n40_*.log
 experiments/fx_*.log
+experiments/my_replays/
+experiments/ladder_wall.csv
+experiments/curmeta/99_LadderWall.csv
+experiments/wallreal*.log

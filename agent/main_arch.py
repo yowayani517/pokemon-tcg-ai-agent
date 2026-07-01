@@ -365,6 +365,10 @@ class ArchPolicy:
                 s += 300 + (150 if active else 0)
                 if self.opp_max_dmg >= 200:
                     s += 1500
+            elif self.opp_is_wall and pk.id == C.DURALUDON:
+                # 対イワパレス: 進化しない非exジュラルドンが攻撃役。+100HPで壁のシザー120に
+                # 耐えさせ、被弾でレイジングハンマーの火力も上げる。
+                s += 400 + (150 if active else 0)
             return s
         s = self._energy_target_score(pk, active)
         bidx = o.inPlayIndex + (0 if active else 1)
@@ -442,7 +446,15 @@ class ArchPolicy:
         if cid == C.NIGHT_STRETCHER:
             return 1500
         if cid == C.FULL_METAL_LAB:
-            return 1200 if not self.state.stadium else -1
+            cur = self.state.stadium
+            # 対イワパレス: 壁はバトルコロシアムで我々のラボを上書きしてくる。フルメタルラボの
+            # -30(鋼が受けるダメ軽減)は壁のシザー120を90に下げ耐久を大きく上げるので、
+            # 相手スタジアムを上書きして-30を維持する。
+            if self.opp_is_wall:
+                if not cur or cur[0].id != C.FULL_METAL_LAB:
+                    return 2000
+                return -1
+            return 1200 if not cur else -1
         return 1000
 
     def _score_card(self, o):
