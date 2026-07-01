@@ -302,7 +302,11 @@ class ArchPolicy:
         if t == OptionType.NUMBER:
             return o.number or 0
         if t == OptionType.YES:
-            return 100 if self.context == SelectContext.IS_FIRST else 1
+            # 先攻選択・特性の起動(Assemble Alloy等)は必ずYES。ブリジュラスの特性で
+            # 墓地から鋼エネを付ける機会を絶対に逃さない。
+            if self.context in (SelectContext.IS_FIRST, SelectContext.ACTIVATE):
+                return 100
+            return 1
         if t == OptionType.NO:
             return 0
         if t == OptionType.CARD:
@@ -421,8 +425,9 @@ class ArchPolicy:
             # Alloyの旨味(=即エネ)を活かす。1体目(攻撃役が要る)は捨て札関係なく進化。
             metal_disc = sum(1 for c in self.me.discard if c.id == C.METAL)
             have_arch = self.field_counts[C.ARCHALUDON] >= 1
-            if have_arch and metal_disc < 2:
-                return 500   # 2体目は墓地に鋼が無いうちは保留(他に良い手があれば譲る)
+            if have_arch and metal_disc == 0:
+                return 500   # 2体目は墓地に鋼が"全く無い"時だけ保留(進化しても回収0で無駄だから)
+            # 墓地に鋼があれば進化して特性で回収する(墓地のエネを絶対に遊ばせない)
             s += 1000   # 進化=特性で加速できるので最優先級
             if o.inPlayArea == AreaType.ACTIVE:
                 s += 400   # アクティブを先に300HP化=脆い130Duraludonで殴られ続けない
@@ -467,12 +472,14 @@ class ArchPolicy:
             # 進化パーツのサーチ＋コストで鋼を捨て札に送りAssemble Alloyを起動する二役。
             # ただしサポートやキーポケを切ってまで撃たない(次に繋がらない)。場に核が全く
             # 無い時だけは例外的に強行(ジュラルドンが無いと始まらない)。
-            no_line = self.field_counts[C.ARCHALUDON] + self.field_counts[C.DURALUDON] == 0
+            # サポート(特にリーリエ)やキーポケを切ってまで撃つのは厳禁。安全に切れる札
+            # (エネ/余りグッズ/ジーランス)が2枚未満なら、場にポケモンが居る限り撃たない。
             protected = {C.LILLIE, C.CARMINE, C.JUDGE, C.BOSS, C.ARCHALUDON, C.DURALUDON}
             safe = sum(1 for c in (self.me.hand or [])
                        if c.id != C.ULTRA_BALL and c.id not in protected)
-            if not no_line and safe < 2:
-                return -1   # 安全に切れる札が2枚未満=サポ/キーを切る羽目→撃たず次ターンへ
+            board_pokemon = any(p is not None for p in self._my_board())
+            if safe < 2 and board_pokemon:
+                return -1   # サポ/キーを切る羽目になる=撃たず温存、次ターンでサポートを使う
             need = self.field_counts[C.ARCHALUDON] + self.field_counts[C.DURALUDON] < 2
             metal_in_disc = sum(1 for c in self.me.discard if c.id == C.METAL)
             # 重要(ミラー分析): 進化(9000)より先にUltra Ballで鋼を捨て札に仕込まないと
@@ -631,17 +638,18 @@ class ArchPolicy:
         return 0
 
     def _score_discard(self, card):
-        # 捨て札に送るカードの優先度(ハイパーボールのコスト等)。
+        # 捨てる優先度は【エネ > ポケモン > グッズ > サポート】。ただし本体(ジュラルドン/
+        # ブリジュラス)は死守。サポートは最後まで残す(手札を多く保つ意識)。
         cid = card.id
         if cid == C.METAL:
-            return 120   # 鋼=Assemble Alloyの燃料。最優先で捨て札へ(進化時に回収)
-        if cid in (C.LILLIE, C.CARMINE, C.JUDGE, C.BOSS):
-            return -150  # サポートは捨てない(次の動きに繋がらなくなる)
-        if cid in (C.ARCHALUDON, C.DURALUDON):
-            return -200  # 大事な進化パーツは残す
+            return 120   # エネ=最優先で捨てる(Assemble Alloyの燃料にもなる)
         if cid == C.RELICANTH:
-            return -50   # 一応残したいが最悪OK(夜のタンカで戻せる)
-        return 0         # 余りグッズ等は捨ててよい
+            return 60    # ポケモン(非キー)。エネの次に捨ててよい(夜のタンカで戻せる)
+        if cid in (C.ARCHALUDON, C.DURALUDON):
+            return -200  # 本体は死守
+        if cid in (C.LILLIE, C.CARMINE, C.JUDGE, C.BOSS):
+            return -150  # サポートは最後まで残す(次の動きに繋がる/手札を保つ)
+        return 20        # グッズ(余り)はポケモンの次・サポートより先に捨てる
 
 
 def _fallback(select):

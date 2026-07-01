@@ -102,3 +102,4 @@ experiments/arch_v3.log
 experiments/wallchk*.log
 experiments/arch_v4.log
 experiments/arch_v5.log
+experiments/arch_v6.log
