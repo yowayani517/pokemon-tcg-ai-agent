@@ -564,18 +564,32 @@ class ArchPolicy:
         def have(cid):
             return self.field_counts[cid] + self.hand_counts[cid]
         cid = card.id
+        bench_pokemon = sum(1 for p in self.me.bench if p is not None)
         if cid == C.DURALUDON:
-            return 400 - have(C.DURALUDON) * 130      # エース。薄いほど最優先
+            # エース。常に最優先。特にベンチにポケモンが居ない=前が倒されたら負ける状況では
+            # 必ずたね(=ジュラルドン)を確保する。
+            s = 500 - have(C.DURALUDON) * 120
+            if bench_pokemon == 0:
+                s += 300                                # たね確保は負け回避で最優先
+            return s
         if cid == C.ARCHALUDON:
             # 対イワパレス: ブリジュラスexは壁に無効で使わない。探しに行かない。
             if self.opp_is_wall:
                 return -20
-            base = 370 - have(C.ARCHALUDON) * 130
+            base = 380 - have(C.ARCHALUDON) * 120
             if self.field_counts[C.DURALUDON] >= 1 and have(C.ARCHALUDON) == 0:
-                base += 220                            # ジュラルドンいて進化先が無い=進化して育てる最優先
-            return base
+                base += 200                             # ジュラルドンいて進化先が無い=育てるため確保
+            return base                                 # 常にジュラルドン>ブリジュラス優先
         if cid == C.RELICANTH:
-            return 300 if have(C.RELICANTH) == 0 else -50   # 1枚で十分
+            # ジーランスは最低優先度(いたらいい程度)。ジュラルドン2体以上かつブリジュラス
+            # 所持済み、という余裕がある時だけ確保。ベンチが空で他にたねが無いなら負け回避で確保。
+            if have(C.RELICANTH) >= 1:
+                return -100
+            if bench_pokemon == 0:
+                return 100                              # 他にたねが無い最終手段(負け回避)
+            if self.field_counts[C.DURALUDON] >= 2 and have(C.ARCHALUDON) >= 1:
+                return 120                              # 余裕がある時だけ
+            return -100
         if cid == C.METAL:
             # 夜のタンカ等でエネは基本回収しない(進化時Alloyが墓地から自動で2枚つけるため)
             return -30
