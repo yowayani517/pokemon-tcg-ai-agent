@@ -333,6 +333,14 @@ class ArchPolicy:
                 return True
         return False
 
+    def _established(self):
+        # 育ちきった=場に3エネのブリジュラス(=攻撃態勢)がいる。中盤以降この状態なら
+        # 手札入れ替え系(ジャッジマン/リーリエ/ゼイユ)は使わず、ボス等のリソースを温存して攻める。
+        for pk in self._my_board():
+            if pk is not None and pk.id == C.ARCHALUDON and len(pk.energies) >= 3:
+                return True
+        return False
+
     def _promote_worth_it(self):
         # ベンチの攻撃役を前に出す価値があるか。ジーランス(壁役)を無駄に引っ込めないため、
         # 「準備できた本命(3エネのブリジュラス、壁相手なら3エネのジュラルドン)」か
@@ -481,16 +489,19 @@ class ArchPolicy:
             return 3400   # サポートをサーチ＋デッキ圧縮。サポート本体より先に撃つ
         if cid == C.POKE_PAD:
             return 3300   # ポケモンをサーチ＋圧縮。ドローサポより先に撃つ
+        # 育ちきったら(場に3エネのブリジュラス)手札入れ替え系は封印し、リソースを温存して攻める。
+        # ただし手札が枯れた(≤2)時だけは引き直す。
+        established_hold = self._established() and self.me.handCount >= 3
         if cid == C.LILLIE:
             # リーリエ: 手札を捨てて6枚(残サイド6なら8)引く純ドロー。手札が細い時に。
-            if self._low_deck():
+            if self._low_deck() or established_hold:
                 return -1
             hc = self.me.handCount
             return 3000 if hc <= 4 else (1500 if hc <= 5 else -1)
         if cid == C.CARMINE:
             # ゼイユ: 手札全捨て→5枚。主目的は手札の鋼を捨て札へ送りAssemble Alloyの
             # 燃料にすること(進化時に捨て札から鋼2枚を回収)。加えて手札が悪い時の引き直し。
-            if self._low_deck():
+            if self._low_deck() or established_hold:
                 return -1
             metal_disc = sum(1 for c in self.me.discard if c.id == C.METAL)
             if (self.field_counts[C.DURALUDON] >= 1 and self.hand_counts[C.METAL] >= 1
@@ -498,6 +509,8 @@ class ArchPolicy:
                 return 3100   # 鋼を捨て札に仕込む+引き直し(主目的)
             return 2800 if self.me.handCount <= 4 else 600
         if cid == C.JUDGE:
+            if established_hold:
+                return -500
             # ジャッジマン: 両者が手札を山に戻し4枚引く。相手も引けるので使いどころ厳選。
             #  ・自分の手札が多く相手が少ない時=相手を利するので絶対使わない
             #  ・相手の手札が多い(6+)時=4枚に削る妨害
