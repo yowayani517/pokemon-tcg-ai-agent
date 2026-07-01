@@ -439,7 +439,10 @@ class ArchPolicy:
         s = self._energy_target_score(pk, active)
         bidx = o.inPlayIndex + (0 if active else 1)
         if bidx == plan.attacker and plan.needs_energy:
-            s += 500
+            # このエネを付ければ今ターン攻撃到達(例:2エネ→3エネのブリジュラス)。
+            # ハイパーボール(9500)や進化(9000)より最優先。あと1エネで殴れるのに
+            # ハイパーボールを撃つのは論外=まずエネを付ける。
+            return 12000
         return s
 
     def _score_evolve(self, o):
