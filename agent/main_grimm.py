@@ -253,9 +253,8 @@ class GrimmPolicy:
                         sc += 2500          # ジュラルドン(→ブリジュラスex)は着地前に狩る
                     if ko and len(opk.energies) >= 2 and prize_count(opk) == 1:
                         sc += 800           # エネ投資済み非exを狩る=相手のテンポを2ターン奪う
-                    # スボミーのアイテムロックは序盤のテンポ(本命が育つまでの時間稼ぎ)
-                    if aid == ITCHY_POLLEN and not self._grimm_ready():
-                        sc += 900
+                    # 1位のログ分析: 勝ち試合はスボミー攻撃ほぼ0(0.06回)。ロックより
+                    # 本命育成が全て。ボーナスは付けない(KOできる時だけ自然に選ばれる)
                     odmg = _max_atk_damage(od)
                     if self.my_act_hp and odmg >= self.my_act_hp:
                         sc += 900 if ko else 300
@@ -287,18 +286,32 @@ class GrimmPolicy:
         return len(act.energies) >= (d.retreatCost if d else 0)
 
     def _promote_worth_it(self):
+        # にげる=アクティブのエネを捨てる(悪エネは10枚しかない貴重資源)。
+        # 安いKOのために逃げ回るとエネ経済が崩壊するので、価値がコストを上回る時だけ。
         if plan.attacker < 1:
             return False
-        if plan.ko:
-            return True
+        act = self.me.active[0] if self.me.active else None
+        cost = 0
+        if act is not None:
+            d = CARD_TABLE.get(act.id)
+            cost = min(d.retreatCost if d else 0, len(act.energies))
         bi = plan.attacker - 1
         bench = self.me.bench
         bp = bench[bi] if 0 <= bi < len(bench) else None
         if not bp:
             return False
-        if bp.id == C.GRIMM and len(bp.energies) >= 2:
-            return True
-        return False
+        ready = bp.id == C.GRIMM and len(bp.energies) >= 2
+        if plan.ko:
+            # KOでも、2エネ捨ててまで取るのは2サイド級 or 完成オーロンゲを出す時だけ
+            if cost == 0:
+                return True
+            if ready:
+                return True
+            if cost <= 1:
+                tgt = self._opp_board()[plan.target] if 0 <= plan.target < len(self._opp_board()) else None
+                return bool(tgt is not None and prize_count(tgt) >= 2)
+            return False
+        return ready and cost <= 1
 
     # ---- 選択 ----
     def choose(self):
@@ -356,7 +369,12 @@ class GrimmPolicy:
         elif pk.id in (C.MORGREM, C.IMPIDIMP):
             s += 200 if n < 2 else -150          # 進化前に前もって2まで育てる
         elif pk.id == C.MUNKI:
-            s += 250 if n == 0 else -300         # マシマシラは特性起動に悪1だけ
+            # マシマシラの特性(毎ターン ダメカン3個を相手へ=実質+30打点&30回復)は
+            # このデッキの隠れテンポエンジン。本命が2エネ完成したら3枚目はここへ。
+            if n == 0:
+                s += 700 if self._grimm_ready() else 250
+            else:
+                s -= 300
         else:
             # その他(スボミー等)には張らない。ただしベンチに完成オーロンゲがいるのに
             # 前が逃げられない時だけ逃げエネを許可(デッドロック回避)
