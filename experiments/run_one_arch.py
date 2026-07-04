@@ -4,7 +4,7 @@ from kaggle_environments import make
 HERE=os.path.dirname(os.path.abspath(__file__)); ROOT=os.path.dirname(HERE)
 def load(p,n):
     s=importlib.util.spec_from_file_location(n,p); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); return m
-ARCH=load(os.path.join(ROOT,"agent","main_arch.py"),"main_arch")
+ARCH=load(os.environ.get("AGENT_PATH", os.path.join(ROOT,"agent","main_arch.py")),"main_arch")
 WALL=load(os.path.join(ROOT,"agent","main.py"),"wall")
 oppspec=sys.argv[1]; seat=int(sys.argv[2])
 if oppspec=="wall": opp=WALL.agent
