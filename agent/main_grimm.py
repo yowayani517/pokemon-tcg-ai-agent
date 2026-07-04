@@ -433,7 +433,9 @@ class GrimmPolicy:
         if cid == C.DUNSPARCE:
             return 3000 if self.field_counts[C.DUNSPARCE] + self.field_counts[C.DUDUN] == 0 else 800
         if cid == C.MUNKI:
-            return 2800 if self.field_counts[C.MUNKI] == 0 else 400
+            # マシマシラは3体並べる価値がある: 各自が特性でダメカン3個/T移動
+            # =3体で毎T90点(相手の220打点を実質130へ)。2発KOレースを崩す核心。
+            return 2800 - self.field_counts[C.MUNKI] * 300
         if cid == C.BUDEW:
             return 1200
         if cid == C.FEZ:
@@ -608,7 +610,7 @@ class GrimmPolicy:
         if cid == C.DUDUN:
             return 140 if self.field_counts[C.DUNSPARCE] >= 1 and have(C.DUDUN) == 0 else -50
         if cid == C.MUNKI:
-            return 130 if have(C.MUNKI) == 0 else -60
+            return 130 if have(C.MUNKI) <= 2 else -60   # 3体目まで確保する価値あり
         if cid == C.DARK:
             return -30
         return 0
