@@ -163,6 +163,9 @@ class GrimmPolicy:
             d = CARD_TABLE.get(pk.id)
             self.opp_max_dmg = max(self.opp_max_dmg, _max_atk_damage(d))
         self.opp_is_wall = any(p is not None and p.id in WALL_IDS for p in self._opp_board())
+        # メガユキメノコex(861): うらみのオルゴール=こちらの手札×50ダメ(1エネ)。
+        # 手札を溜めると320のオーロンゲでも即死する→手札を絞るモードに切り替え
+        self.opp_is_froslass = any(p is not None and p.id in (860, 861) for p in self._opp_board())
         self.my_confused = bool(getattr(self.me, "confused", False))
         a0 = self.me.active[0] if self.me.active else None
         self.my_act_hp = a0.hp if a0 else 0
@@ -371,10 +374,14 @@ class GrimmPolicy:
         elif pk.id == C.MUNKI:
             # マシマシラの特性(毎ターン ダメカン3個を相手へ=実質+30打点&30回復)は
             # このデッキの隠れテンポエンジン。本命が2エネ完成したら3枚目はここへ。
+            # 対壁では最重要: ダメカン移動はワザでないのでイワパレスの防御を貫通する
+            # 唯一の火力(3体で毎T90点)。
             if n == 0:
-                s += 700 if self._grimm_ready() else 250
+                s += 700 if (self._grimm_ready() or self.opp_is_wall) else 250
             else:
                 s -= 300
+        elif self.opp_is_wall and pk.id == C.YVELTAL:
+            s += 350 if n < 3 else -200      # 対壁の副砲(非ex110)。ただしマシマシラ優先
         else:
             # その他(スボミー等)には張らない。ただしベンチに完成オーロンゲがいるのに
             # 前が逃げられない時だけ逃げエネを許可(デッドロック回避)
@@ -395,6 +402,10 @@ class GrimmPolicy:
                 s += 300 + (150 if active else 0)   # 320+100=420 ほぼ不沈
             return s
         s = self._energy_target_score(pk, active)
+        # 対壁: 勝ち筋はマシマシラのダメカン移動(ワザでないので壁を貫通する唯一の火力)。
+        # サブアタッカーの攻撃プランにエネを散らすより、マシマシラ3体の充電が先。
+        if self.opp_is_wall and pk.id == C.MUNKI and len(pk.energies) == 0:
+            return 13000
         bidx = o.inPlayIndex + (0 if active else 1)
         if bidx == plan.attacker and plan.needs_energy:
             return 12000    # このエネで今ターン攻撃到達=最優先
@@ -408,8 +419,9 @@ class GrimmPolicy:
             return 0
         s = 9000 + len(pk.energies)
         if ev is not None and ev.id == C.GRIMM:
-            if self.opp_is_wall:
-                return -1000    # 壁相手にex進化は無意味(攻撃無効)
+            # 対壁でも進化してよい: イワパレスの特性は「自身への攻撃ダメージ」だけを防ぐ。
+            # オーロンゲはベンチのイシズマイに30スナイプ+ボス釣り出し180KO+320タンクで有効。
+            # 真の壁貫通はマシマシラのダメカン移動(ワザでないので防がれない)。
             s += 500            # オーロンゲ最優先
         if ev is not None and ev.id == C.DUDUN:
             s -= 300            # ノココッチは急がない(ドローが欲しい時に)
@@ -435,13 +447,16 @@ class GrimmPolicy:
         if cid == C.MUNKI:
             # マシマシラは3体並べる価値がある: 各自が特性でダメカン3個/T移動
             # =3体で毎T90点(相手の220打点を実質130へ)。2発KOレースを崩す核心。
+            # 対壁ではエネ付け(13000)より先にベンチへ出す(順序: 出してから充電)
+            if self.opp_is_wall and self.field_counts[C.MUNKI] < 3:
+                return 14000
             return 2800 - self.field_counts[C.MUNKI] * 300
         if cid == C.BUDEW:
             return 1200
         if cid == C.FEZ:
             return 900
         if cid == C.YVELTAL:
-            return 600
+            return 3200 if self.opp_is_wall else 600   # 対壁: 非ex主砲を即展開
         return 300
 
     def _grimm_line_missing(self):
@@ -459,8 +474,7 @@ class GrimmPolicy:
         cid = card.id
         if cid == C.CANDY:
             # ふしぎなアメ: ベロバーが場&オーロンゲが手札なら即打ち(このデッキの心臓)
-            if (self.field_counts[C.IMPIDIMP] >= 1 and self.hand_counts[C.GRIMM] >= 1
-                    and not self.opp_is_wall):
+            if self.field_counts[C.IMPIDIMP] >= 1 and self.hand_counts[C.GRIMM] >= 1:
                 return 9600
             return -1
         if cid == C.POFFIN:
@@ -481,6 +495,9 @@ class GrimmPolicy:
         if cid == C.BOSS:
             return 3200 if plan.target >= 1 else -1
         if cid == C.LILLIE:
+            # 対ユキメノコ: 手札×50で殴られるので大量ドローは自殺行為。手札3枚以下の時だけ
+            if self.opp_is_froslass:
+                return 2000 if self.me.handCount <= 2 else -1
             if self._established() and self.me.handCount >= 3:
                 return 600
             return 2800 if self.me.handCount <= 4 else 900
@@ -541,6 +558,10 @@ class GrimmPolicy:
             s += 1500
         if pk.id == 169:
             s += 900        # ジュラルドンにベンチ30を当てて2回目のスナイプでKO圏へ
+        if pk.id == 344:
+            s += 1800       # 対壁: イシズマイ(70)は無防備。スナイプ2回+移動でKO=1サイド
+        if pk.id == 345 and self.opp_is_wall:
+            s += 600        # マシマシラの移動先としてのイワパレス(移動は防がれない)
         if o.index == plan.target - 1:
             s += 400
         s += target_score(pk) // 10
@@ -595,9 +616,9 @@ class GrimmPolicy:
                 s += 300
             return s
         if cid == C.GRIMM:
-            if self.opp_is_wall:
-                return -20
             return 480 - have(C.GRIMM) * 140
+        if cid == C.YVELTAL and self.opp_is_wall:
+            return 520 if have(C.YVELTAL) == 0 else -50   # 対壁: 最優先サーチ
         if cid == C.CANDY:
             return 420 - self.hand_counts[C.CANDY] * 150
         if cid == C.MORGREM:
