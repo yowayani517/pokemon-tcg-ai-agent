@@ -155,6 +155,10 @@ class AlakazamPolicy:
                     self.can_switch = True
 
         self.opp_is_wall = any(p is not None and p.id in WALL_IDS for p in self._opp_board())
+        self.opp_max_dmg = 0
+        for pk in self._opp_board():
+            if pk is not None:
+                self.opp_max_dmg = max(self.opp_max_dmg, _max_atk_damage(CARD_TABLE.get(pk.id)))
         self.opp_special_energy = self._opp_has_special_energy()
         self.my_confused = bool(getattr(self.me, "confused", False))
         a0 = self.me.active[0] if self.me.active else None
@@ -246,7 +250,9 @@ class AlakazamPolicy:
                     # 手札を育てる(勝者は手札13で大型exを2発KO、敗者は小手札でチップ負け)。
                     odmg_pre = _max_atk_damage(CARD_TABLE.get(opk.id))
                     under_pressure = bool(self.my_act_hp and odmg_pre >= self.my_act_hp)
-                    if aid == POWERFUL_HAND and not ko and self.hand_size < 11 \
+                    # 高火力アグロ(ルカリオ等)相手は貯めすぎるとレース負け=早めに殴りトレード。
+                    hold_thresh = 8 if self.opp_max_dmg >= 200 else 11
+                    if aid == POWERFUL_HAND and not ko and self.hand_size < hold_thresh \
                             and not under_pressure:
                         continue
                     sc = target_score(opk)
