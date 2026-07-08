@@ -241,6 +241,14 @@ class AlakazamPolicy:
                         elif od.resistance == EnergyType.PSYCHIC:
                             damage -= 30
                     ko = opk.hp <= damage
+                    # 攻撃規律(上位ログ): パワフルハンドは小さくチマチマ撃たない。
+                    # KOできる/手札が十分大きい/倒される緊急時 以外は温存してドローで
+                    # 手札を育てる(勝者は手札13で大型exを2発KO、敗者は小手札でチップ負け)。
+                    odmg_pre = _max_atk_damage(CARD_TABLE.get(opk.id))
+                    under_pressure = bool(self.my_act_hp and odmg_pre >= self.my_act_hp)
+                    if aid == POWERFUL_HAND and not ko and self.hand_size < 11 \
+                            and not under_pressure:
+                        continue
                     sc = target_score(opk)
                     if ko:
                         sc += 4000
